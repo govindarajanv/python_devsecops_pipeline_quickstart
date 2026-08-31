@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "appointment-service.redisName" . }}
+  labels:
+    {{- include "appointment-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "appointment-service.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "appointment-service.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: "{{ .Values.redis.image }}:{{ .Values.redis.tag | default "7.2-alpine" }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: redis
+              containerPort: {{ .Values.redis.port }}
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          command: ["sh", "-c"]
+          args:
+            - exec redis-server
+              --requirepass "$$REDIS_REQUIREPASS"
+              --appendonly "no"
+              --save ""
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "redis-cli -a $$REDIS_REQUIREPASS ping | grep PONG"]
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "redis-cli -a $$REDIS_REQUIREPASS ping | grep PONG"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          env:
+            - name: REDIS_REQUIREPASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "appointment-service.fullname" . }}
+                  key: redis-password
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.redis.persistence.enabled }}
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          {{- end }}
+      {{- if .Values.redis.persistence.enabled }}
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: {{ include "appointment-service.redisName" . }}
+      {{- end }}

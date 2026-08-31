@@ -1,0 +1,35 @@
+# Gitleaks configuration for the appointment booking service.
+#
+# This config extends the default Gitleaks ruleset. The `extend` directive
+# merges these rules with Gitleaks' built-in secret detection rules.
+
+title = "Appointment Service - Gitleaks Config"
+
+[extend]
+
+[[rules]]
+id = "appointment-demo-api-key"
+description = "Detect the demo API key used by the appointment service"
+regex = '''(?i)appointment_demo_api_key\s*=\s*([0-9a-f]{32})'''
+entropy = 3.5
+secretGroup = 1
+keywords = ["appointment_demo_api_key"]
+
+[[rules]]
+id = "hardcoded-redis-password"
+description = "Detect hardcoded Redis credentials"
+regex = '''REDIS_PASSWORD\s*=\s*['"]([^'"]+)['"]'''
+entropy = 2.0
+secretGroup = 1
+keywords = ["REDIS_PASSWORD"]
+
+[allowlist]
+description = "Allowlist for test fixtures and documentation"
+regexes = [
+    '''sample_payload''',
+    '''Jane Doe''',
+]
+paths = [
+    '''tests/''',
+    '''.*README.md''',
+]

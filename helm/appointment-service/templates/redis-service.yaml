@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "appointment-service.redisName" . }}
+  labels:
+    {{- include "appointment-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.redis.port }}
+      targetPort: {{ .Values.redis.port }}
+      protocol: TCP
+      name: redis
+  selector:
+    {{- include "appointment-service.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis

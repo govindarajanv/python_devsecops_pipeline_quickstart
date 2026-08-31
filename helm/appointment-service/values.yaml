@@ -1,0 +1,85 @@
+# Default values for the appointment-service chart.
+# This is a YAML-formatted file. Booleans are lower-case; strings are quoted.
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/YOUR_GITHUB_USERNAME/appointment-service
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+imagePullSecrets: []
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: false
+  className: nginx
+  host: appointment.local
+  annotations: {}
+
+# Security hardening for the app pod
+securityContext:
+  pod:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    seccompProfile:
+      type: RuntimeDefault
+  container:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+
+resources:
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+# Redis container bundled with this chart for simplicity
+redis:
+  image: redis:7.2-alpine
+  tag: ""
+  port: 6379
+  # NOTE: this is a demo default. In production, inject via a Secret from
+  # Vault / external-secrets / SOPS. Never commit real credentials.
+  password: ""
+  persistence:
+    enabled: true
+    size: 1Gi
+
+probes:
+  livenessPath: /health
+  readinessPath: /ready
+
+config:
+  appVersion: "0.1.0"
+  logLevel: info
+
+# Node selector / tolerations / affinity for the app pods
+nodeSelector: {}
+tolerations: []
+affinity: {}
