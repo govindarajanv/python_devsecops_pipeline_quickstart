@@ -1,0 +1,17 @@
+apiVersion: v2
+name: appointment-service
+description: Helm chart for the appointment booking service (FastAPI + Redis) deployed via ArgoCD on Minikube
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+keywords:
+  - appointment
+  - fastapi
+  - redis
+  - devsecops
+  - gitops
+
+maintainers:
+  - name: DevSecOps Team
+    email: devsecops@example.com

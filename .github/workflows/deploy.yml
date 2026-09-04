@@ -1,0 +1,111 @@
+name: GitOps Deploy (ArgoCD -> Minikube)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'frontend/**'
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - 'helm/**'
+      - 'gitops/**'
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: 'Image tag to promote to GitOps repo'
+        required: false
+        default: 'latest'
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/appointment-service
+  # Argo CD Application name defined in gitops/argo-application.yaml
+  ARGOCD_APP: appointment-service-app
+
+permissions:
+  contents: write
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Promote the newly built image tag into the GitOps manifest (GitOps source
+  # of truth) and commit it back to main. Argo CD picks up the change via its
+  # automated sync policy and rolls it out to Minikube.
+  # -------------------------------------------------------------------------
+  promote-image:
+    name: Promote Image Tag
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.set-tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine image tag
+        id: set-tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.image-tag }}"
+          else
+            TAG="sha-${GITHUB_SHA::12}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Promoting image tag: $TAG"
+
+      - name: Update image tag in Helm values
+        run: |
+          sed -i "s|repository: .*|repository: ${{ env.IMAGE_NAME }}|" helm/appointment-service/values-dev.yaml
+          sed -i "s|tag: .*|tag: ${{ steps.set-tag.outputs.tag }}|" helm/appointment-service/values-dev.yaml
+          grep -A2 'image:' helm/appointment-service/values-dev.yaml
+
+      - name: Commit GitOps change
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore(gitops): promote image to ${{ steps.set-tag.outputs.tag }}'
+          file_pattern: helm/appointment-service/values-dev.yaml
+          commit_user_name: 'devsecops-bot'
+          commit_user_email: 'devsecops-bot@users.noreply.github.com'
+
+  # -------------------------------------------------------------------------
+  # Trigger an Argo CD sync against the Application so the change rolls out to
+  # Minikube immediately (rather than waiting for the poll interval).
+  # -------------------------------------------------------------------------
+  argocd-sync:
+    name: ArgoCD Sync
+    runs-on: ubuntu-latest
+    needs: [promote-image]
+    # Enable by setting the repository variable ARGOCD_SYNC_ENABLED=true
+    # plus the ARGOCD_SERVER / ARGOCD_USERNAME / ARGOCD_PASSWORD secrets.
+    if: ${{ vars.ARGOCD_SYNC_ENABLED == 'true' }}
+    env:
+      ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Argo CD CLI
+        run: |
+          VERSION=$(curl -sSL https://api.github.com/repos/argoproj/argo-cd/releases/latest | grep -o '"tag_name": *"[^"]*"' | cut -d'"' -f4)
+          echo "Installing argocd-cli ${VERSION}"
+          curl -sSL -o /tmp/argocd.tar.gz \
+            "https://github.com/argoproj/argo-cd/releases/download/${VERSION}/argocd-linux-amd64.tar.gz"
+          tar -xzf /tmp/argocd.tar.gz -C /usr/local/bin argocd
+          argocd version --client
+
+      - name: Argo CD Login
+        run: |
+          argocd login "${{ secrets.ARGOCD_SERVER }}" \
+            --username "${{ secrets.ARGOCD_USERNAME }}" \
+            --password "${{ secrets.ARGOCD_PASSWORD }}" \
+            --insecure --grpc-web
+
+      - name: Argo CD Sync App
+        run: |
+          argocd app sync "${{ env.ARGOCD_APP }}" \
+            --server "${{ secrets.ARGOCD_SERVER }}" \
+            --timeout 300 --grpc-web
+
+      - name: Argo CD Wait for Health
+        run: |
+          argocd app wait "${{ env.ARGOCD_APP }}" \
+            --server "${{ secrets.ARGOCD_SERVER }}" \
+            --health --timeout 300 --grpc-web
