@@ -59,7 +59,7 @@ jobs:
           grep -A2 'image:' helm/appointment-service/values-dev.yaml
 
       - name: Commit GitOps change
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: 'chore(gitops): promote image to ${{ steps.set-tag.outputs.tag }}'
           file_pattern: helm/appointment-service/values-dev.yaml
