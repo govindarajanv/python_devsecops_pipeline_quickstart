@@ -11,4 +11,4 @@ pre-commit==4.0.1
 
 # SCA / SBOM / license tooling
 pip-audit==2.7.3
-pip-licenses==5.0.0
+pip-licenses==5.5.5
