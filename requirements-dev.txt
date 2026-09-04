@@ -10,5 +10,5 @@ ruff==0.8.4
 pre-commit==4.0.1
 
 # SCA / SBOM / license tooling
-pip-audit==2.7.3
+pip-audit==2.10.1
 pip-licenses==5.0.0
