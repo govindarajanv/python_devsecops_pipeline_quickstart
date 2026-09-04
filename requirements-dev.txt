@@ -7,7 +7,7 @@ httpx==0.28.1
 ruff==0.8.4
 
 # Pre-commit framework
-pre-commit==4.0.1
+pre-commit==4.6.2
 
 # SCA / SBOM / license tooling
 pip-audit==2.7.3
